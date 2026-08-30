@@ -1,7 +1,9 @@
 package com.yeshwanth.aiknowledgeassistant.service;
 
 import com.yeshwanth.aiknowledgeassistant.entity.Document;
+import com.yeshwanth.aiknowledgeassistant.entity.DocumentChunk;
 import com.yeshwanth.aiknowledgeassistant.entity.DocumentStatus;
+import com.yeshwanth.aiknowledgeassistant.repository.DocumentChunkRepository;
 import com.yeshwanth.aiknowledgeassistant.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.List;
 
 
 @Service
@@ -20,30 +23,24 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final PdfTextExtractor pdfTextExtractor;
+    private final DocumentChunkRepository documentChunkRepository;
 
     private final Path uploadDirectory = Paths.get("uploads");
 
     public Document saveDocument(MultipartFile file) throws IOException {
 
+        String fileName = file.getOriginalFilename();
         Files.createDirectories(uploadDirectory);
 
-        String fileName = file.getOriginalFilename();
-
-        Path filePath = null;
-
-        if (fileName != null) {
-            filePath = uploadDirectory.resolve(fileName);
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("File name cannot be empty");
         }
 
-
-        if (filePath != null) {
-            file.transferTo(filePath);
-        }
-
-        String extractedText = pdfTextExtractor.extractText(filePath);
-        System.out.println(extractedText);
+        Path filePath = uploadDirectory.resolve(fileName);
+        file.transferTo(filePath);
 
         Document document = new Document();
+        TextChunker textChunker = new TextChunker();
 
         document.setFileName(fileName);
         document.setContentType(file.getContentType());
@@ -52,6 +49,26 @@ public class DocumentService {
         document.setCreatedAt(LocalDateTime.now());
         document.setUpdatedAt(LocalDateTime.now());
 
-        return documentRepository.save(document);
+        Document savedDocument  =  documentRepository.save(document);
+
+        String extractedText = pdfTextExtractor.extractText(filePath);
+        List<String> chunks = textChunker.chunktText(extractedText);
+
+        for(int i=0; i<chunks.size(); i++){
+
+            DocumentChunk documentChunk = new DocumentChunk();
+
+            documentChunk.setDocument(savedDocument);
+            documentChunk.setContent(chunks.get(i));
+            documentChunk.setChunkIndex(i);
+
+            documentChunkRepository.save(documentChunk);
+
+
+        }
+
+
+
+        return savedDocument;
     }
 }
