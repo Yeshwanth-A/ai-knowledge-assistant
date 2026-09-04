@@ -5,8 +5,8 @@ import java.util.List;
 
 public class TextChunker {
 
-    private final int chunkSize = 1000;
-    private final int overlap = 200;
+    private final int chunkSize = 2000;
+    private final int overlap = 400;
 
     public List<String> chunktText(String text) {
 
